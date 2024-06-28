@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mone TapTo play!😂</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Prevent scrolling */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    canvas {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      display: block;
+    }
+    #gameOverScreen, #notSupportedMessage {
+      display: none;
+      text-align: center;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    #notSupportedMessage {
+      background: rgba(255, 0, 0, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="gameOverScreen">
+    <h2>Game Over</h2>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+  <div id="notSupportedMessage">Sorry! Not supported on Desktop!🚫</div>
+
+  <script>
+    // Detect if the user is on a desktop
+    function isDesktop() {
+      const userAgent = navigator.userAgent.toLowerCase();
+      return userAgent.indexOf('windows') !== -1 || userAgent.indexOf('macintosh') !== -1;
+    }
+
+    // Block access if on desktop
+    if (isDesktop()) {
+      document.getElementById('notSupportedMessage').style.display = 'block';
+      document.getElementById('gameCanvas').style.display = 'none';
+      document.getElementById('gameOverScreen').style.display = 'none';
+    } else {
+      // JavaScript for game logic
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const gameOverScreen = document.getElementById('gameOverScreen');
+      const finalScore = document.getElementById('finalScore');
+
+      // Set canvas size to full screen
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+
+      // Game variables
+      let playerY = canvas.height / 2;
+      let playerVelocityY = 0;
+      const playerWidth = 50;
+      const playerHeight = 50;
+      let score = 0;
+      let obstacleList = [];
+      let obstacleSpeed = 4;
+      let gameRunning = true;
+      let shieldActive = false; // Shield active flag
+      let shieldDuration = 2000; // Shield duration in milliseconds
+      let shieldEnd = 0; // Timestamp for shield expiration
+
+      // Player object (flying spider)
+      const player = {
+        emoji: '🗿',
+        draw: function() {
+          ctx.font = '50px serif';
+          ctx.fillText(this.emoji, 50, playerY + 50);
+        },
+        fly: function() {
+          playerVelocityY = -8;
+          playSound('fly');
+        },
+        activateShield: function() {
+          shieldActive = true;
+          shieldEnd = Date.now() + shieldDuration; // Set shield end time
+        }
+      };
+
+      // Obstacle object (spiders)
+      function Obstacle(y) {
+        this.x = canvas.width;
+        this.y = y;
+        this.width = 30;
+        this.height = 30;
+
+        this.draw = function() {
+          ctx.fillStyle = 'brown';
+          ctx.fillRect(this.x, this.y, this.width, this.height);
+          ctx.fillStyle = 'white';
+          ctx.font = '16px Arial';
+          ctx.fillText('🕷️', this.x + 8, this.y + 20);
+        }
+
+        this.update = function() {
+          this.x -= obstacleSpeed;
+        }
+      }
+
+      // Generate initial obstacles
+      function generateObstacles() {
+        const obstacleY = Math.random() * (canvas.height - 30);
+        obstacleList.push(new Obstacle(obstacleY));
+      }
+
+      // Game loop
+      function gameLoop() {
+        if (!gameRunning) return;
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Update player position
+        playerY += playerVelocityY;
+        playerVelocityY += 0.5;
+
+        // Prevent player from going out of bounds
+        if (playerY < 0) {
+          playerY = 0;
+          playerVelocityY = 0;
+        }
+        if (playerY > canvas.height - playerHeight) {
+          playerY = canvas.height - playerHeight;
+          playerVelocityY = 0;
+        }
+
+        // Draw player
+        player.draw();
+
+        // Draw and update obstacles
+        obstacleList.forEach((obstacle, index) => {
+          obstacle.draw();
+          obstacle.update();
+
+          // Check collision with player
+          if (shieldActive) {
+            // If shield is active, skip collision detection
+          } else if (playerY < obstacle.y + obstacle.height &&
+              playerY + playerHeight > obstacle.y &&
+              50 < obstacle.x + obstacle.width &&
+              50 + playerWidth > obstacle.x) {
+            // Collision detected
+            endGame();
+          }
+
+          // Remove obstacles that are out of canvas
+          if (obstacle.x + obstacle.width < 0) {
+            obstacleList.splice(index, 1);
+            score++;
+          }
+        });
+
+        // Generate new obstacles randomly
+        if (Math.random() < 0.02) {
+          generateObstacles();
+        }
+
+        // Increase obstacle speed gradually
+        obstacleSpeed += 0.001;
+
+        // Display score
+        ctx.fillStyle = 'black';
+        ctx.font = '20px Arial';
+        ctx.fillText('Score: ' + score, 10, 30);
+
+        // Check if shield has expired
+        if (shieldActive && Date.now() > shieldEnd) {
+          shieldActive = false; // Deactivate shield
+        }
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Event listener for screen touch or click (fly)
+      canvas.addEventListener('mousedown', function() {
+        player.fly();
+      });
+      canvas.addEventListener('touchstart', function() {
+        player.fly();
+      });
+
+      // Event listener for activating shield (example: press 'S' key)
+      window.addEventListener('keydown', function(event) {
+        if (event.key === 's') {
+          player.activateShield();
+        }
+      });
+
+      // Start the game loop
+      gameLoop();
+
+      // Sound effects
+      function playSound(type) {
+        const sound = new Audio();
+        if (type === 'fly') {
+          sound.src = 'fly-sound.mp3'; // Add your fly sound file path
+        } else if (type === 'collision') {
+          sound.src = 'collision-sound.mp3'; // Add your collision sound file path
+        }
+        sound.play();
+      }
+
+      // Function to send score to Telegram bot
+      function sendScoreToTelegram(score) {
+        const botToken = 'BOT-TOKEN-IBADE';
+        const chatId = 'CHAT-ID';
+        const text = Game Over! Your final score: ${score};
+
+        const url = https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(text)};
+
+        fetch(url)
+          .then(response => response.json())
+          .then(data => {
+            console.log('Message sent:', data);
+          })
+          .catch(error => {
+            console.error('Error sending message:', error);
+          });
+      }
+
+      // End game
+      function endGame() {
+        gameRunning = false;
+        playSound('collision');
+        finalScore.textContent = 'Your final score: ' + score;
+        gameOverScreen.style.display = 'block';
+        sendScoreToTelegram(score); // Send score to Telegram bot
+      }
+
+      // Restart game
+      function restartGame() {
+        playerY = canvas.height / 2;
+        playerVelocityY = 0;
+        score = 0;
+        obstacleList = [];
+        obstacleSpeed = 4;
+        gameRunning = true;
+        shieldActive = false;
+        gameOverScreen.style.display = 'none';
+        gameLoop();
+      }
+    }
+  </script>
+</body>
+  </html>
